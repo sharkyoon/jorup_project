@@ -3152,12 +3152,133 @@ cout<<"new offset "<<temp<<endl;
 /*
   ------------------------------ malloc ------------------------------
 */
+#if __STD_C
+static Void_t* initMalloc(INTERNAL_SIZE_T nb, mstate av,
+	int bytes)
+#else
+	static Void_t* initMalloc(nb, av, bytes) INTERNAL_SIZE_T nb; mstate av; int bytes;
+#endif
+	{
+mchunkptr old_top; /* incoming value of av->top */
+INTERNAL_SIZE_T old_size; /* its size */
+char* old_end; /* its end address */
 
+long size; /* arg to first MORECORE or mmap call */
+char* brk; /* return value from MORECORE */
+
+long correction; /* arg to 2nd MORECORE call */
+char* snd_brk; /* 2nd return val */
+
+INTERNAL_SIZE_T front_misalign; /* unusable bytes at front of new space */
+INTERNAL_SIZE_T end_misalign; /* partial page left at end of new space */
+char* aligned_brk; /* aligned offset into brk */
+
+mchunkptr p; /* the allocated/returned chunk */
+mchunkptr remainder; /* remainder from allocation */
+CHUNK_SIZE_T remainder_size; /* its size */
+
+CHUNK_SIZE_T sum; /* for updating stats */
+
+size_t pagemask = av->pagesize - 1;
+
+/*
+ If there is space available in fastbins, consolidate and retry
+ malloc from scratch rather than getting memory from system.  This
+ can occur only if nb is in smallbin range so we didn't consolidate
+ upon entry to malloc. It is much easier to handle this case here
+ than in malloc proper.
+ */
+
+if (have_fastchunks(av)) {
+	assert(in_smallbin_range(nb));
+	malloc_consolidate(av);
+	return mALLOc(nb - MALLOC_ALIGN_MASK);
+}
+
+/*
+ If have mmap, and the request size meets the mmap threshold, and
+ the system supports mmap, and there are few enough currently
+ allocated mmapped regions, try to directly map this request
+ rather than expanding top.
+ */
+
+char* mm;
+size = (nb + SIZE_SZ + MALLOC_ALIGN_MASK + pagemask) & ~pagemask;
+/* Don't try if size wraps around 0 */
+if ((CHUNK_SIZE_T) (size) > (CHUNK_SIZE_T) (nb)) {
+	if (pool == (void *) -1) {
+		perror("SHMAT FAILED : ");
+		exit(0);
+	}
+
+	/*offset과 allocation size의 합이 page size(4096)이상일 경우
+	 다른 임의의 page로 이동. 위의 NEW_PAGE_HEAD() 함수 수정 필요.
+	 NEW_PAGE_HEAD()에서는 0에서 100까지(pool의 page 총갯수)의 숫자중에서
+	 랜덤으로 하나의 수를 반환한다.
+	 while에 PAGE_SIZE/4에 그 값을 곱해줌.
+	 pool = pool + PAGE_SIZE*NEW_PAGE_HEAD/4의 꼴로 수정 -> 에러 수정
+	 */
+	while (*head + sizeof(int) + (int) bytes > PAGE_SIZE) {
+		cout << "current head addr: " << head << endl;
+		head = head + PAGE_SIZE / 4;
+	}
+
+	// 반환 address 결정
+	mm = (char*) head + *head + sizeof(int);
+
+	// head(offset information) update
+	*head = *head + (int) bytes;
+
+	// 4bytes 단위로 align
+	if ((*head) % 4 != 0)
+		*head += (4 - (*head % 4));
+	/*
+	 The offset to the start of the mmapped region is stored
+	 in the prev_size field of the chunk. This allows us to adjust
+	 returned start address to meet alignment requirements here
+	 and in memalign(), and still be able to compute proper
+	 address argument for later munmap in free() and realloc().
+	 */
+
+	front_misalign = (INTERNAL_SIZE_T)chunk2mem(mm) & MALLOC_ALIGN_MASK;
+	if (front_misalign > 0) {
+		correction = MALLOC_ALIGNMENT - front_misalign;
+		p = (mchunkptr) (mm + correction);
+		p->prev_size = correction;
+		set_head(p, (size - correction) |IS_MMAPPED);
+	} else {
+		p = (mchunkptr) mm;
+		p->prev_size = 0;
+		set_head(p, size|IS_MMAPPED);
+	}
+
+	/* update statistics */
+
+	if (++av->n_mmaps > av->max_n_mmaps)
+		av->max_n_mmaps = av->n_mmaps;
+
+	sum = av->mmapped_mem += size;
+	if (sum > (CHUNK_SIZE_T) (av->max_mmapped_mem))
+		av->max_mmapped_mem = sum;
+	sum += av->sbrked_mem;
+	if (sum > (CHUNK_SIZE_T) (av->max_total_mem))
+		av->max_total_mem = sum;
+
+	check_chunk(p);
+
+	return chunk2mem(p);
+}
+
+/* catch all failure paths */
+MALLOC_FAILURE_ACTION
+;
+return 0;
+}
 
 #if __STD_C
-Void_t* small_malloc(size_t bytes)
+Void_t* smallMalloc(size_t bytes)
 #else
-  Void_t* small_malloc(bytes) size_t bytes;
+  Void_t* smallMalloc(bytes) size_t bytes;
 #endif
 {
 	mstate av = get_malloc_state();
@@ -3498,62 +3619,15 @@ Void_t* small_malloc(size_t bytes)
 	    return chunk2mem(victim);
 	  }
 
-	/* ----------------------------------수정한 main part----------------
 
-
-		Archipelago-pagepool allocation
-
-
-	*/
-
-	if(bytes < 4092){
-	cout << "MEMORY ID : " << shmid << endl;
-
-	if (pool == (void *) -1) {
-		perror("SHMAT FAILED : ");
-		exit(0);
-	}
-	//cout<<"pool addr : "<<pool<<endl;
-	//cout<<"size sum : "<<*head + sizeof(int) + (int)bytes <<endl;
-
-	/*offset과 allocation size의 합이 page size(4096)이상일 경우
-		다른 임의의 page로 이동. 위의 NEW_PAGE_HEAD() 함수 수정 필요.
-		NEW_PAGE_HEAD()에서는 0에서 100까지(pool의 page 총갯수)의 숫자중에서
-		랜덤으로 하나의 수를 반환한다.
-		while에 PAGE_SIZE/4에 그 값을 곱해줌.
-		pool = pool + PAGE_SIZE*NEW_PAGE_HEAD/4의 꼴로 수정 -> 에러 수정
-	 */
-	while(*head + sizeof(int) +(int)bytes > PAGE_SIZE){
-	cout<<"current head addr: "<<head<<endl;
-		head = head + PAGE_SIZE/4;
-	}
-
-	// 반환 address 결정
-	char* temp = (char*)head + *head + sizeof(int);
-	addr = (void*)temp;
-
-	// head(offset information) update
-	*head = *head + (int)bytes;
-
-	// 4bytes 단위로 align
-	if((*head) % 4 != 0)
-		*head += (4-(*head % 4));
-	cout<<bytes<<" allocation: " << *temp <<endl;
-	cout << head << endl;
-	return addr;
-	}
-
-	/* system allocation */
-
-	else
-	return sYSMALLOc(nb, av);
+	return initMalloc(nb, av, bytes);
 
 }
 
 #if __STD_C
-Void_t* big_malloc(size_t bytes)
+Void_t* bigMalloc(size_t bytes)
 #else
-  Void_t* big_malloc(bytes) size_t bytes;
+  Void_t* bigMalloc(bytes) size_t bytes;
 #endif
 {
 	mstate av = get_malloc_state();
@@ -3896,7 +3970,6 @@ Void_t* big_malloc(size_t bytes)
 	  /*
 	     If no space in top, relay to handle system-dependent cases
 	  */
-	  cout<<"check"<<endl;
 	  return sYSMALLOc(nb, av);
   }
 
@@ -3914,12 +3987,12 @@ else
 void* temp;
 
 big_size: cout << "BIG" << endl;
-temp = big_malloc(bytes);
+temp = bigMalloc(bytes);
 cout << temp << endl;
 return temp;
 
 small_size: cout << "SMALL" << endl;
-temp = small_malloc(bytes);
+temp = smallMalloc(bytes);
 cout << temp << endl;
 return temp;
 

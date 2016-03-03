@@ -10,9 +10,9 @@
 #include "allocator.h"
 using namespace std;
 int main(){
-	int* test = (int*)dlmalloc(4000*sizeof(int));
+	int* test = (int*)dlmalloc(sizeof(int));
 	dlfree(test);
-	int* test2 = (int*)dlmalloc(4000*sizeof(int));
+	int* test2 = (int*)dlmalloc(sizeof(int));
 	return 0;
 }
 
