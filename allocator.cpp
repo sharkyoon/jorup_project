@@ -3210,7 +3210,6 @@ if ((CHUNK_SIZE_T) (size) > (CHUNK_SIZE_T) (nb)) {
 		perror("SHMAT FAILED : ");
 		exit(0);
 	}
-
 	/*offset과 allocation size의 합이 page size(4096)이상일 경우
 	 다른 임의의 page로 이동. 위의 NEW_PAGE_HEAD() 함수 수정 필요.
 	 NEW_PAGE_HEAD()에서는 0에서 100까지(pool의 page 총갯수)의 숫자중에서
@@ -3218,20 +3217,13 @@ if ((CHUNK_SIZE_T) (size) > (CHUNK_SIZE_T) (nb)) {
 	 while에 PAGE_SIZE/4에 그 값을 곱해줌.
 	 pool = pool + PAGE_SIZE*NEW_PAGE_HEAD/4의 꼴로 수정 -> 에러 수정
 	 */
-	while (*head + sizeof(int) + (int) bytes > PAGE_SIZE) {
-		cout << "current head addr: " << head << endl;
-		head = head + PAGE_SIZE / 4;
-	}
-
 	// 반환 address 결정
 	mm = (char*) head + *head + sizeof(int);
-
+	//cout << (void* ) mm << endl;
 	// head(offset information) update
-	*head = *head + (int) bytes;
+	*head = *head + (int)((bytes)/MALLOC_ALIGNMENT+1)*MALLOC_ALIGNMENT;
+	// MALLOC_ALIGNMENT만큼 align 해준다.
 
-	// 4bytes 단위로 align
-	if ((*head) % 4 != 0)
-		*head += (4 - (*head % 4));
 	/*
 	 The offset to the start of the mmapped region is stored
 	 in the prev_size field of the chunk. This allows us to adjust
@@ -3241,6 +3233,8 @@ if ((CHUNK_SIZE_T) (size) > (CHUNK_SIZE_T) (nb)) {
 	 */
 
 	front_misalign = (INTERNAL_SIZE_T)chunk2mem(mm) & MALLOC_ALIGN_MASK;
+	//cout << "head : " << *head << endl;
+	//cout << "fm : " <<  front_misalign << endl;
 	if (front_misalign > 0) {
 		correction = MALLOC_ALIGNMENT - front_misalign;
 		p = (mchunkptr) (mm + correction);
@@ -3251,7 +3245,6 @@ if ((CHUNK_SIZE_T) (size) > (CHUNK_SIZE_T) (nb)) {
 		p->prev_size = 0;
 		set_head(p, size|IS_MMAPPED);
 	}
-
 	/* update statistics */
 
 	if (++av->n_mmaps > av->max_n_mmaps)
@@ -3265,7 +3258,9 @@ if ((CHUNK_SIZE_T) (size) > (CHUNK_SIZE_T) (nb)) {
 		av->max_total_mem = sum;
 
 	check_chunk(p);
-
+	//cout << "mm : "<<(void*)mm<<endl;
+	//cout << "before chunk2mem : "<<(void*)p<<endl;
+	cout << "returned addr : " <<chunk2mem(p) << endl;
 	return chunk2mem(p);
 }
 
@@ -3618,10 +3613,7 @@ Void_t* smallMalloc(size_t bytes)
 	    check_malloced_chunk(victim, nb);
 	    return chunk2mem(victim);
 	  }
-
-
 	return initMalloc(nb, av, bytes);
-
 }
 
 #if __STD_C
@@ -3986,15 +3978,11 @@ else
 	goto small_size;
 void* temp;
 
-big_size: cout << "BIG" << endl;
-temp = bigMalloc(bytes);
-cout << temp << endl;
-return temp;
+big_size:
+return bigMalloc(bytes);
 
-small_size: cout << "SMALL" << endl;
-temp = smallMalloc(bytes);
-cout << temp << endl;
-return temp;
+small_size:
+return smallMalloc(bytes);
 
 
 }
