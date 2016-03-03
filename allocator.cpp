@@ -3232,10 +3232,10 @@ if ((CHUNK_SIZE_T) (size) > (CHUNK_SIZE_T) (nb)) {
 	 address argument for later munmap in free() and realloc().
 	 */
 
-	front_misalign = (INTERNAL_SIZE_T)chunk2mem(mm) & MALLOC_ALIGN_MASK;
 	//cout << "head : " << *head << endl;
 	//cout << "fm : " <<  front_misalign << endl;
 	if (front_misalign > 0) {
+		front_misalign = (INTERNAL_SIZE_T)chunk2mem(mm) & MALLOC_ALIGN_MASK;
 		correction = MALLOC_ALIGNMENT - front_misalign;
 		p = (mchunkptr) (mm + correction);
 		p->prev_size = correction;
@@ -3600,8 +3600,6 @@ Void_t* smallMalloc(size_t bytes)
 
 	  victim = av->top;
 	  size = chunksize(victim);
-
-
 
 	  if ((CHUNK_SIZE_T)(size) >= (CHUNK_SIZE_T)(nb + MINSIZE)) {
 	    remainder_size = size - nb;

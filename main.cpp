@@ -23,6 +23,11 @@ int main(){
 	int* test6 = (int*)dlmalloc(sizeof(int));
 	dlfree(test);
 	dlfree(test2);
+	dlfree(test3);
+	dlfree(test4);
+	dlfree(test5);
+	dlfree(test6);
+	cout << "memory freed" << endl;
 	int* test7 = (int*)dlmalloc(sizeof(int));
 	*test3 = 39;
 	//cout<<"address : "<<test3<<endl;
