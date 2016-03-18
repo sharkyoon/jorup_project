@@ -10,27 +10,9 @@
 #include "allocator.h"
 using namespace std;
 int main(){
-	int* test = (int*)dlmalloc(sizeof(int));
-	*test = 31;
-	//cout<<"address : " <<test<<endl;
-	int* test2 = (int*)dlmalloc(sizeof(int));
-	*test2 = 35;
-	//cout<<"address : "<<test2<<endl;
-	//cout<< *test << endl;
-	int* test3 = (int*)dlmalloc(sizeof(int));
-	int* test4 = (int*)dlmalloc(sizeof(int));
-	int* test5 = (int*)dlmalloc(sizeof(int));
-	int* test6 = (int*)dlmalloc(sizeof(int));
-	dlfree(test);
-	dlfree(test2);
-	dlfree(test3);
-	dlfree(test4);
-	dlfree(test5);
-	dlfree(test6);
-	cout << "memory freed" << endl;
-	int* test7 = (int*)dlmalloc(sizeof(int));
-	*test3 = 39;
-	//cout<<"address : "<<test3<<endl;
+	for(int i = 0; i < 10; i++){
+		int* test0 = (int*)m_Alloc(sizeof(int));
+	}
 	return 0;
 }
 
