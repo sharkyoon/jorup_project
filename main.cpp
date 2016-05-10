@@ -10,7 +10,7 @@
 #include "allocator.h"
 using namespace std;
 int main(){
-	for(int i = 0; i < 10; i++){
+	for(int i = 0; i < 200; i++){
 		int* test0 = (int*)m_Alloc(sizeof(int));
 	}
 	return 0;
