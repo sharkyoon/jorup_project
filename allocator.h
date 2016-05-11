@@ -12,10 +12,10 @@ class MemInfo{
 public:
 	int pagenum;
 	int size;
-	char* address;
-	MemInfo(int _pagenum, int _size, char* _address){
+	int location;
+	MemInfo(int _pagenum, int _size, int _location){
 		pagenum = _pagenum;
 		size = _size;
-		address = _address;
+		location = _location;
 	}
 };

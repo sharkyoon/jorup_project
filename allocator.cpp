@@ -35,8 +35,9 @@ int getRandom() {
 }
 
 void* m_Alloc(int size) {
+	cout << "====================================================" << endl;
 	if (pool == (void *) -1) {
-		perror("SHMAT FAILED : ");
+		perror("SHMAT FAILED :\t");
 		exit(0);
 	}
 	if (!init) {
@@ -48,16 +49,27 @@ void* m_Alloc(int size) {
 	}
 
 	int pageindex = getRandom();
+	// for test
+	// int pageindex = 3;
 	char* pagehead = (char*) head + PAGE_SIZE * pageindex;
 	char* check_blank = pagehead + sizeof(int);
 	char* mm;
-	if (*((int*)check_blank) > size) {
-		mm = (char*) check_blank + sizeof(int);
+	int pagelocation;
+	cout << "blank size :\t" << *((int*) check_blank) << endl;
+	cout << "blank location :\t" << *(int*) (check_blank + sizeof(int)) << endl;
+	if (*((int*) check_blank) >= size) {
+		cout << "blank에 할당" << endl;
+		mm = (char*) pagehead + 3 * sizeof(int)
+				+ *(int*) (check_blank + sizeof(int));
+		cout << (int*) mm << endl;
+		*((int*) check_blank) = 0;
+		pagelocation = *(int*) (check_blank + sizeof(int));
 	} else {
-		mm = (char*) pagehead + *pagehead + 2 * sizeof(int) + sizeof(int*);
+		mm = (char*) pagehead + *pagehead + 3 * sizeof(int);
 		//sizeof(int) 하나는 원래 있던것.
 		//sizeof(int) 하나는 중간 빈 부분의 size를 저장하는 곳
-		//sizeof(int*)은 빈 부분의 주소를 저장하는 곳
+		//sizeof(int) 하나는 빈 부분의 주소(페이지 내부에서의 위치)를 저장하는 곳
+		pagelocation = *pagehead;
 		*pagehead = *pagehead
 				+ (int) ((size) / MALLOC_ALIGNMENT + 1) * MALLOC_ALIGNMENT;
 		if (*((int*) pagehead) > PAGE_SIZE - MALLOC_ALIGNMENT - 1) {
@@ -65,23 +77,30 @@ void* m_Alloc(int size) {
 		}
 	}
 	cout << "pagehead :\t" << *((int*) pagehead) << endl;
-	cout << "-------------------------------------" << endl;
 	if (occupied > POOL_SIZE / 2) {
 		occupied--;
 		MemInfo checkmeminfo = meminfo.front();
 		meminfo.pop();
+		cout << "------------------------------" << endl;
+		cout << "info coming out of queue :\t" << checkmeminfo.pagenum << ", "
+				<< checkmeminfo.size << ", " << checkmeminfo.location << endl;
+		cout << "------------------------------" << endl;
 		char* blank_info = (char*) head + PAGE_SIZE * checkmeminfo.pagenum
 				+ sizeof(int);
 		char* blank_addr = blank_info + sizeof(int);
 		if (*((int*) blank_info) < checkmeminfo.size) {
-			*((int*) blank_info) = checkmeminfo.size;
-			blank_addr = checkmeminfo.address;
+			*((int*) blank_info) = (checkmeminfo.size / MALLOC_ALIGNMENT + 1) * MALLOC_ALIGNMENT;
+			*((int*) blank_addr) = checkmeminfo.location;
 		}
 		check[checkmeminfo.pagenum] = true;
 	}
 
-	MemInfo tempmeminfo(pageindex, size, mm);
+	MemInfo tempmeminfo(pageindex, ((size) / MALLOC_ALIGNMENT + 1) * MALLOC_ALIGNMENT, *pagehead);
+	cout << "info going in queue :\t" << pageindex << ", " << size << ", "
+			<< *(int*)pagehead << endl;
 	meminfo.push(tempmeminfo);
 	occupied++;
+	cout << "occupied page # :\t" << occupied << endl;
+	cout << "returned memory address :\t" << (int*) mm << endl;
 	return mm;
 }
